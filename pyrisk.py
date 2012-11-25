@@ -4,8 +4,256 @@ import random
 import copy
 import sys
 import curses
+import logging
+logging.basicConfig()
+LOG = logging.getLogger("pyrisk")
 
-class Game:
+class Territory(object):
+    def __init__(self, name, area):
+        self.name = name
+        self.area = area
+        self.owner = None
+        self.forces = 0
+        self.connect = {}
+
+    def __repr__(self):
+        return "Territory(%s, %s, %s)" % (self.name, self.area.name if self.area else None, self.owner) 
+        
+class Area(object):
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+        self.territories = {}
+
+    def __repr__(self):
+        return "Area(%s, %s, %s)" % (self.name, self.value, list(self.territories.values()))
+    
+    @property
+    def owner(self):
+        owners = set(t.owner for t in self.territories)
+        if len(owners) == 1:
+            return owners[0]
+        else:
+            return None
+        
+
+class World(object):
+    def __init__(self):
+        self.territories = {}
+        self.areas = {}
+
+    def load(self, areas, connections):
+        for name, (value, territories) in areas.items():
+            LOG.debug("Creating area=%s", name)
+            area = Area(name, value)
+            self.areas[name] = area
+            for t in territories:
+                LOG.debug("Creating territory=%s", t)
+                territory = Territory(t, area)
+                area.territories[t] = territory
+                self.territories[t] = territory
+        for line in filter(lambda l: l.strip(), connections.split('\n')):
+            joins = [t.strip() for t in line.split('--')]
+            for i in range(len(joins) - 1):
+                t0 = self.territories[joins[i]]
+                t1 = self.territories[joins[i+1]]
+                t0.connect[t1.name] = t1
+                t1.connect[t0.name] = t0
+            
+
+class Player(object):
+    def __init__(self):
+        self.name = name
+        self.color = color
+        self.ord = 0
+        self.ai = None
+        self.world = world
+
+    @property
+    def territories(self):
+        for t in self.world.territories.values():
+            if t.owner == self:
+                yield t
+
+    @property
+    def areas(self):
+        for a in self.world.areas.values():
+            if a.owner == self:
+                yield a
+
+    @property    
+    def forces(self):
+        return sum(t.forces for t in self.territories)
+
+    @property
+    def alive(self):
+        return len(self.territories)
+
+    @property
+    def reinforcements(self):
+        return max(len(self.territories)/3, 3) + sum(a.value for a in self.areas)
+
+class Display(object):
+    def update(self, event):
+        LOG.info(event)
+
+class CursesDisplay(Display):
+    def __init__(self, screen, game, cmap, ckey):
+        self.screen = screen
+        self.game = game
+        self.t_coords = {t: [] for t in ckey}
+        self.t_centre = {}
+        for i, line in enumerate(cmap.split('\n')):
+            for j, char in enumerate(line):
+                if char in ckey:
+                    self.t_coords[ckey[char]] += [(i, j)]
+        for t, ijs in self.t_coords.items():
+            sum_i = sum(i[0] for i in ijs)
+            sum_j = sum(i[1] for i in ijs)
+            self.t_centre[t] = (sum_i/len(ijs), sum_j/len(ijs))
+            
+    def update(self, event):
+        pass
+        
+                
+                    
+
+class Game(object):
+    defaults = {
+        "curses": True,
+        "color": True,
+        "delay": 0,
+        "connect": CONNECT,
+        "areas": AREAS
+        "cmap": MAP,
+        "ckey": KEY,
+        "attack_dice": 3,
+        "defense_dice": 2,
+        "screen": None
+    }
+    def __init__(self, **options):
+        self.options = defaults.copy()
+        self.options.update(options)
+
+        self.world = World()
+        self.world.load(self.options['areas'], self.options['connect'])
+
+        self.players = {}
+
+        self.turn = 0
+        self.turn_order = []
+
+        if self.options['curses']:
+            self.display = CursesDisplay(self.options['screen'], self,
+                                         self.options['cmap'], self.options['ckey'])
+        else:
+            self.display = Display
+
+
+    @property
+    def player:
+        return self.players[self.turn_order[self.turn % len(self.players)]]
+
+    def event(self, e, *args):
+        self.display.update((e, *args))
+        LOG.info((e, *args))
+        
+    def start(self):
+        self.event("start")
+        self.turn_order = random.shuffle(self.players.keys())
+        live_players = len(self.players)
+        self.initial_placement(turn_order)
+        
+        while live_players > 1:
+            if self.player.alive:
+                choices = self.player.ai.reinforce(self.player.reinforcements)
+                assert sum(choices.values()) == self.player.reinforcements
+                for t, f in choices.items():
+                    assert t in self.world.territories
+                    assert self.world.territories[t].owner == self.player
+                    assert f >= 0
+                    self.world.territories[t].forces += f
+                    self.event("reinforce", self.player.name, t, f)
+                
+                for src, target, attack, move in self.player.ai.attack():
+                    assert src in self.world.territories
+                    assert target in self.world.territories
+                    assert self.world.territories[src].owner == self.player
+                    assert self.world.territories[target].owner != self.player
+                    victory = self.combat(src, target, attack, move)
+                    self.event("conquer" if victory else "defeat", self.player.name, src, target)
+                freemove = self.player.ai.freemove()
+                if freemove:
+                    src, target, count = freemove
+                    assert src in self.world.territories
+                    assert target in self.world.territories
+                    assert self.world.territories[src].owner == self.player
+                    assert self.world.territories[target].owner == self.player
+                    assert 0 < count < self.world.territories[src].forces
+                    self.world.territories[src].forces -= count
+                    self.world.territories[target].forces += count
+                    self.event("move", self.player.name, src, target, count)
+                live_players = len([p for p in self.players.values() if p.alive])
+            self.turn += 1
+        winner = [p for p in self.players.values() if p.alive][0]
+        self.event("victory", winner)
+        return winner
+
+    def combat(self, src, target, f_atk, f_move):
+        n_atk = self.territories[src].forces
+        n_def = self.territories[target].forces
+
+        while n_atk > 1 and n_def > 0 and f_atk(n_atk, n_def):
+            atk_dice = min(n_atk - 1, 3)
+            atk_roll = sorted([random.randint(1, 6) for i in range(atk_dice)], reverse=True)
+            def_dice = min(n_def, 2)
+            def_roll = sorted([random.randint(1, 6) for i in range(def_dice)], reverse=True)
+
+            for a, d in zip(atk_roll, def_roll):
+                if a > d:
+                    n_def -= 1
+                else:
+                    n_atk -= 1
+        
+        if n_def == 0:
+            move = f_move(n_atk)
+            assert min(n_atk - 1, 3) =< move < n_atk
+            self.world.territories[src].forces = n_atk - move
+            self.world.territories[target].forces = move
+            self.world.territories[target].owner = self.world.territories[src].owner
+            return True
+        else:
+            self.world.territories[src].forces = n_atk
+            self.world.territories[target].forces = n_def
+            return False
+
+    def initial_placement(self):
+        empty = self.world.territories.keys()
+        available = 35 - 2*len(self.players)
+        remaining = {p.name: available for p in self.players}
+
+        while empty:
+            choice = self.player.ai.initial_placement(empty, remaining[self.player.name])
+            assert choice in empty
+            self.world.territories[choice].forces += 1
+            self.world.territories[choice].owner = self.player
+            remaining[self.player.name] -= 1
+            empty.remove(choice)
+            self.event("claim", self.player.name, choice)
+            self.turn += 1
+        
+        while sum(remaining.values()) > 0:
+            if remaining[self.player.name] > 0:
+                choice = self.player.ai.initial_placement(None, remaining[self.player.name])
+                assert choice in self.world.territories
+                assert self.world.territories[choice].owner == self.player
+                self.world.territories[choice].forces += 1
+                remaining[self.player.name] -= 1
+                self.event("reinforce", self.player.name, choice, 1)
+                self.turn += 1
+
+
+class Game(object):
   def __init__(self,**kwargs):
     self.players = {}
     self.ai = {}
