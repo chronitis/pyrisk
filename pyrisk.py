@@ -77,7 +77,7 @@ class Player(object):
         self.name = name
         self.color = 0
         self.ord = 32
-        self.ai = ai_class(self, **ai_kwargs)
+        self.ai = ai_class(self, game, game.world, **ai_kwargs)
         self.game = game
 
     @property
@@ -194,55 +194,6 @@ class CursesDisplay(Display):
                                min(self.sy, self.wy + self.iy+1), min(self.ix-1, self.sx))
         self.screen.refresh()
         time.sleep(0.1)
-
-class AI(object):
-    def __init__(self, player, **kwargs):
-        self.player = player
-    
-    def start(self):
-        pass
-
-    def end(self):
-        pass
-
-    def event(self, msg):
-        pass
-
-    def initial_placement(self, empty, remaining):
-        raise NotImplementedError
-
-    def reinforce(self, available):
-        raise NotImplementedError
-    
-    def attack(self):
-        raise NotImplementedError
-
-    def freemove(self):
-        return None
-
-class RandomAI(AI):
-    def initial_placement(self, empty, remaining):
-        if empty:
-            return random.choice(empty)
-        else:
-            t = random.choice(list(self.player.territories))
-            return t.name
-
-    def attack(self):
-        for t in self.player.territories:
-            for a in t.connect:
-                if a.owner != self.player:
-                    if t.forces > a.forces:
-                        yield (t.name, a.name, None, None)
-
-    def reinforce(self, available):
-        border = [t for t in self.player.territories if t.border]
-        result = collections.defaultdict(int)
-        for i in range(available):
-            t = random.choice(border).name
-            result[t] += 1
-        return result
-
           
 class Game(object):
     defaults = {
@@ -404,10 +355,12 @@ class Game(object):
      
 
 if __name__ == '__main__':
+    from ai.random_ai import RandomAI
+    from ai.better_ai import BetterAI
     def wrapper(stdscr, *args, **kwargs):
         g = Game(screen=stdscr, **kwargs)
         for i in range(4):
-            g.add_player(["ALPHA", "BETA", "GAMMA", "DELTA"][i], RandomAI)
+            g.add_player(["ALPHA", "BETA", "GAMMA", "DELTA"][i], BetterAI)
         g.start()
     curses.wrapper(wrapper)
     
