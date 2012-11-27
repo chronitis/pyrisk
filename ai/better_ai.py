@@ -9,7 +9,9 @@ class BetterAI(AI):
 
     def priority(self):
         priority = sorted([t for t in self.player.territories if t.border], key=lambda x: self.area_priority.index(x.area.name))
-        return [t for t in priority if t.area == priority[0].area]
+        priority = [t for t in priority if t.area == priority[0].area]
+        return priority if priority else list(self.player.territories)
+            
 
     def initial_placement(self, empty, available):
         if empty:
