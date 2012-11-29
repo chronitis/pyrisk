@@ -4,7 +4,7 @@ import collections
 
 class BetterAI(AI):
     def start(self):
-        self.area_priority = self.world.areas.keys()
+        self.area_priority = list(self.world.areas)
         random.shuffle(self.area_priority)
 
     def priority(self):

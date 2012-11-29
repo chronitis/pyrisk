@@ -27,6 +27,10 @@ class Territory(object):
                 return True
         return False
 
+    @property
+    def ownarea(self):
+        return self.owner == self.area.owner
+
     def __repr__(self):
         return "Territory(%s, %s, %s)" % (self.name, self.area.name if self.area else None, self.owner) 
         
@@ -110,7 +114,7 @@ class Player(object):
 
     @property
     def reinforcements(self):
-        return max(self.territory_count/3, 3) + sum(a.value for a in self.areas)
+        return max(self.territory_count//3, 3) + sum(a.value for a in self.areas)
 
 class Display(object):
     def update(self, msg, player=None, territory=None):
@@ -139,7 +143,7 @@ class CursesDisplay(Display):
         for t, ijs in self.t_coords.items():
             sum_i = sum(i[0] for i in ijs)
             sum_j = sum(i[1] for i in ijs)
-            self.t_centre[t] = (sum_j/len(ijs), sum_i/len(ijs))
+            self.t_centre[t] = (sum_j//len(ijs), sum_i//len(ijs))
         
         self.sy, self.sx = self.screen.getmaxyx()    
         curses.noecho()
@@ -174,7 +178,7 @@ class CursesDisplay(Display):
 
         self.infopad.clear()
         self.infopad.addstr(0, 0, 
-                            "TURN " + str(self.game.turn/len(self.game.players)) + ": " + " ".join(msg), 
+                            "TURN " + str(self.game.turn//len(self.game.players)) + ": " + " ".join(msg), 
                             curses.COLOR_WHITE | curses.A_BOLD)
         self.infopad.addstr(2, 0, 
                             "NAME        TERR    FORCES  +FORCES AREA", 
@@ -249,7 +253,7 @@ class Game(object):
         
     def start(self):
         assert 2 <= len(self.players) <= 5
-        self.turn_order = self.players.keys()
+        self.turn_order = list(self.players)
         random.shuffle(self.turn_order)
         for i, name in enumerate(self.turn_order):
             self.players[name].color = i + 1
@@ -366,7 +370,7 @@ class Game(object):
             return False
 
     def initial_placement(self):
-        empty = self.world.territories.keys()
+        empty = list(self.world.territories)
         available = 35 - 2*len(self.players)
         remaining = {p: available for p in self.players}
 
