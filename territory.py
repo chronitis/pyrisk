@@ -8,6 +8,7 @@ class Territory(object):
         self.owner = None
         self.forces = 0
         self.connect = set()
+        self.ord = None
 
     @property
     def border(self):
@@ -41,6 +42,7 @@ class Area(object):
             return None
 
 class World(object):
+    ords = list(map(ord, r'\/|-+'))
     def __init__(self):
         self.territories = {}
         self.areas = {}
@@ -62,3 +64,10 @@ class World(object):
                 t1 = self.territories[joins[i+1]]
                 t0.connect.add(t1)
                 t1.connect.add(t0)
+        for t in self.territories.values():
+            avail = set(self.ords)
+            for c in t.connect:
+                if c.ord in avail:
+                    avail.remove(c.ord)
+            assert avail
+            t.ord = avail.pop()

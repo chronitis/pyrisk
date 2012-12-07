@@ -18,6 +18,7 @@ class CursesDisplay(Display):
         self.game = game
         self.t_coords = collections.defaultdict(list)
         self.t_centre = {}
+        self.color = color
 
         self.wx = 0
         self.wy = 0
@@ -35,7 +36,7 @@ class CursesDisplay(Display):
         
         self.sy, self.sx = self.screen.getmaxyx()    
         curses.noecho()
-        if color:
+        if self.color:
             for i in range(1, 8):
                 curses.init_pair(i, i, curses.COLOR_BLACK)
         
@@ -51,7 +52,10 @@ class CursesDisplay(Display):
         for name, t in self.game.world.territories.items():
             if t.owner:
                 attrs = curses.color_pair(t.owner.color)
-                char = t.owner.ord
+                if self.color:
+                    char = t.ord
+                else:
+                    char = t.owner.ord
             else:
                 attrs = curses.COLOR_WHITE
                 char = self.UNCLAIMED

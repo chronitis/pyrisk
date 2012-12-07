@@ -2,7 +2,7 @@ from ai import AI
 import random
 import collections
 
-class RandomAI(AI):
+class StupidAI(AI):
     def initial_placement(self, empty, remaining):
         if empty:
             return random.choice(empty)
