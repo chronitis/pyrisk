@@ -12,17 +12,30 @@ class Territory(object):
 
     @property
     def border(self):
-        for c in self.connect:
-            if c.owner != self.owner:
-                return True
-        return False
+        return any(t.owner != self.owner for t in self.connect)
 
     @property
-    def ownarea(self):
+    def area_owned(self):
         return self.owner == self.area.owner
 
+    @property
+    def area_border(self):
+        return any(t.area != self.area for t in self.connect)
+
+    def adjacent(self, friendly=None, thisarea=None):
+        for t in self.connect:
+            if friendly is None or friendly == (t.owner == self.owner):
+                if thisarea is None or thisarea == (t.area == self.area):
+                    yield t
+    
+    def adjacent_forces(self, friendly=None, thisarea=None):
+        return sum(t.forces for t in self.adjacent(friendly, thisarea))
+        
     def __repr__(self):
         return "Territory(%s, %s, %s)" % (self.name, self.area.name if self.area else None, self.owner)
+
+    def __hash__(self):
+        return hash(("territory", self.name))
 
 class Area(object):
     def __init__(self, name, value):
@@ -40,6 +53,22 @@ class Area(object):
             return owners.pop()
         else:
             return None
+
+    @property
+    def forces(self):
+        return sum(t.forces for t in self.territories)
+
+    @property
+    def adjacent(self):
+        adj = set()
+        for t in self.territories:
+            for tt in t.connect:
+                if tt.area != self:
+                    adj.add(tt.area)
+        return adj
+
+    def __hash__(self):
+        return hash(("area", self.name))
 
 class World(object):
     ords = list(map(ord, r'\/|-+'))

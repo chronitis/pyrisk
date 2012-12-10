@@ -58,7 +58,10 @@ class CursesDisplay(Display):
                     char = t.owner.ord
             else:
                 attrs = curses.COLOR_WHITE
-                char = self.UNCLAIMED
+                if self.color:
+                    char = t.ord
+                else:
+                    char = self.UNCLAIMED
             if name in territory:
                 attrs |= curses.A_BOLD
             for i, j in self.t_coords[name]:

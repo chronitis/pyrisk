@@ -68,7 +68,7 @@ if args.games == 1:
     if args.curses:
         curses.wrapper(wrapper, **kwargs)
     else:
-        wrapper(**kwargs)
+        wrapper(None, **kwargs)
 else:
     wins = collections.defaultdict(int)
     for j in range(args.games):
@@ -77,7 +77,7 @@ else:
         if args.curses:
             victor = curses.wrapper(wrapper, **kwargs)
         else:
-            victor = wrapper(**kwargs)
+            victor = wrapper(None, **kwargs)
         wins[victor] += 1
     print("Outcome of %s games" % args.games)
     for k in sorted(wins, key=lambda x: wins[x]):
