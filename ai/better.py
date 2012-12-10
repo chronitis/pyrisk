@@ -30,13 +30,14 @@ class BetterAI(AI):
 
     def attack(self):
         for t in self.player.territories:
-            adjacent = [a for a in t.connect if a.owner != t.owner]
-            if len(adjacent) == 1:
-                yield (t.name, adjacent[0].name, lambda a, d: a > d + 3, None)
-            else:
-                total = sum(a.forces for a in adjacent)
-                for adj in adjacent:
-                    yield (t.name, adj.name, lambda a, d: a > d + total - adj.forces + 3, lambda a: 1)
+            if t.forces > 1:
+                adjacent = [a for a in t.connect if a.owner != t.owner]
+                if len(adjacent) == 1:
+                    yield (t.name, adjacent[0].name, lambda a, d: a > d + 3, None)
+                else:
+                    total = sum(a.forces for a in adjacent)
+                    for adj in adjacent:
+                        yield (t.name, adj.name, lambda a, d: a > d + total - adj.forces + 3, lambda a: 1)
     
     def freemove(self):
         srcs = sorted([t for t in self.player.territories if not t.border], key=lambda x: x.forces)

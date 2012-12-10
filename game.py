@@ -19,6 +19,7 @@ class Game(object):
         "ckey": KEY,
         "screen": None,
         "round": None,
+        "wait": False,
         "history": {}
     }
     def __init__(self, **options):
@@ -36,7 +37,7 @@ class Game(object):
         if self.options['curses']:
             self.display = CursesDisplay(self.options['screen'], self,
                                          self.options['cmap'], self.options['ckey'],
-                                         self.options['color'])
+                                         self.options['color'], self.options['wait'])
         else:
             self.display = Display()
 
@@ -105,8 +106,10 @@ class Game(object):
                     if self.world.territories[target] not in self.world.territories[src].connect:
                         self.aiwarn("attack unconnected %s %s", src, target)
                         continue
+                    initial_forces = (self.world.territories[src].forces, self.world.territories[target].forces)
                     victory = self.combat(src, target, attack, move)
-                    self.event(("conquer" if victory else "defeat", self.player.name, src, target), territory=[src, target], player=[self.player.name, self.world.territories[target].owner.name])
+                    final_forces = (self.world.territories[src].forces, self.world.territories[target].forces)
+                    self.event(("conquer" if victory else "defeat", self.player.name, src, target, initial_forces, final_forces), territory=[src, target], player=[self.player.name, self.world.territories[target].owner.name])
                 freemove = self.player.ai.freemove()
                 if freemove:
                     src, target, count = freemove

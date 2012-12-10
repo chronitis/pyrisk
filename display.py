@@ -13,12 +13,13 @@ class CursesDisplay(Display):
     UNCLAIMED = ord(':')
     ix = 80
     iy = 8
-    def __init__(self, screen, game, cmap, ckey, color):
+    def __init__(self, screen, game, cmap, ckey, color, wait):
         self.screen = screen
         self.game = game
         self.t_coords = collections.defaultdict(list)
         self.t_centre = {}
         self.color = color
+        self.wait = wait
 
         self.wx = 0
         self.wy = 0
@@ -98,4 +99,7 @@ class CursesDisplay(Display):
         self.infopad.overwrite(self.screen, 0, 0, min(self.wy+2, self.sy), 0, 
                                min(self.sy, self.wy + self.iy+1), min(self.ix-1, self.sx))
         self.screen.refresh()
-        time.sleep(self.game.options['delay'])
+        if self.wait:
+            self.screen.getch()
+        else:
+            time.sleep(self.game.options['delay'])

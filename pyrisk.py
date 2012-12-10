@@ -24,6 +24,7 @@ parser.add_argument("-l", "--log", action="store_true", default=False)
 parser.add_argument("-d", "--delay", type=float, default=0.1)
 parser.add_argument("-s", "--seed", type=int, default=None)
 parser.add_argument("-g", "--games", type=int, default=1)
+parser.add_argument("-w", "--wait", action="store_true", default=False)
 parser.add_argument("players", nargs="+")
 
 args = parser.parse_args()
@@ -57,7 +58,7 @@ for p in args.players:
             pass
 
 kwargs = dict(curses=args.curses, color=args.color, delay=args.delay,
-              connect=CONNECT, cmap=MAP, ckey=KEY, areas=AREAS)
+              connect=CONNECT, cmap=MAP, ckey=KEY, areas=AREAS, wait=args.wait)
 def wrapper(stdscr, **kwargs):
     g = Game(screen=stdscr, **kwargs)
     for i, klass in enumerate(player_classes):
