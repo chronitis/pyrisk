@@ -12,7 +12,7 @@ class Territory(object):
 
     @property
     def border(self):
-        return any(t.owner != self.owner for t in self.connect)
+        return any(t.owner and t.owner != self.owner for t in self.connect)
 
     @property
     def area_owned(self):
