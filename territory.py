@@ -32,7 +32,7 @@ class Territory(object):
         return sum(t.forces for t in self.adjacent(friendly, thisarea))
         
     def __repr__(self):
-        return "Territory(%s, %s, %s)" % (self.name, self.area.name if self.area else None, self.owner)
+        return "<territory %s, %s, %s>" % (self.name, self.area.name if self.area else None, self.owner)
 
     def __hash__(self):
         return hash(("territory", self.name))
@@ -44,7 +44,7 @@ class Area(object):
         self.territories = set()
 
     def __repr__(self):
-        return "Area(%s, %s, %s)" % (self.name, self.value, self.territories)
+        return "<area %s, %s, %s>" % (self.name, self.value, self.territories)
     
     @property
     def owner(self):
@@ -75,6 +75,22 @@ class World(object):
     def __init__(self):
         self.territories = {}
         self.areas = {}
+
+    def territory(self, t):
+        if t in self.territories.keys():
+            return self.territories[t]
+        elif t in self.territories.values():
+            return t
+        else:
+            return None
+        
+    def area(self, a):
+        if a in self.areas.keys():
+            return self.areas[a]
+        elif a in self.areas.values():
+            return a
+        else:
+            return None
 
     def load(self, areas, connections):
         for name, (value, territories) in areas.items():

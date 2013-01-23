@@ -3,7 +3,11 @@ from collections import defaultdict
 import random
 
 class AlAI(AI):
-    area_priority = ['South America', 'North America', 'Africa', 'Australia', 'Europe', 'Asia']
+    """
+    AlAI: Somewhat like BetterAI, but with a fixed priority order.
+    """
+    area_priority = ['Australia', 'South America', 'North America', 
+                     'Africa', 'Europe', 'Asia']
 
     def initial_placement(self, empty, remaining):
         if empty:
@@ -13,23 +17,23 @@ class AlAI(AI):
                     owned_by_area[t.area.name] += 1
             for area in owned_by_area:
                 if owned_by_area[area] == len(self.world.areas[area].territories) - 1:
-                    remain = [e for e in empty if self.world.territories[e].area.name == area]
+                    remain = [e for e in empty if e.area.name == area]
                     if remain:
                         return random.choice(remain)
-            return sorted(empty, key=lambda x: self.area_priority.index(self.world.territories[x].area.name))[0]
+            return sorted(empty, key=lambda x: self.area_priority.index(x.area.name))[0]
         else:
             priority = []
             i = 0
             while not priority:
                 priority = [t for t in self.player.territories if t.area.name == self.area_priority[i] and t.border]
                 i += 1
-            return random.choice(priority).name
+            return random.choice(priority)
             
     def reinforce(self, available):
         priority = []
         i = 0
         while not priority:
-            priority = [t.name for t in self.player.territories if t.area.name == self.area_priority[i] and t.border]
+            priority = [t for t in self.player.territories if t.area.name == self.area_priority[i] and t.border]
             i += 1
         reinforce_each = available / len(priority)
         remain = available - reinforce_each * len(priority)
@@ -45,9 +49,16 @@ class AlAI(AI):
                 if t.forces > 1:
                     for adj in t.adjacent(friendly=False):
                         if adj.forces - 5 < t.forces:
-                            chance, survive = self.simulate(t.forces, adj.forces)
+                            chance, a_survive, d_survive = self.simulate(t.forces, adj.forces)
                             opt = random.randint(0, 49)
-                            if chance*100 > 30 + opt and survive > t.forces / (opt + 1):
+                            if chance*100 > 30 + opt and a_survive > t.forces / (opt + 1):
                                 can_attack = True
-                                yield (t.name, adj.name, None, None)
+                                yield (t, adj, None, None)
 
+    def freemove(self):
+        for t in self.player.territories:
+            for adjE in t.adjacent(friendly=False):
+                if adjE.forces > t.forces:
+                    for adjF in t.adjacent(friendly=True):
+                        if adjF.forces > 1:
+                            return (adjF, t, adjF.forces-1)

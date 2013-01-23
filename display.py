@@ -4,6 +4,13 @@ LOG = logging.getLogger("pyrisk")
 import curses
 import time
 
+class LogQueue(logging.Handler):
+    def __init__(self):
+        logging.Handler.__init__(self, level=logging.DEBUG)
+        self.queue = []
+    def emit(self, record):
+        self.queue.append(record)
+
 class Display(object):
     def update(self, msg, player=None, territory=None):
         LOG.info(msg)
@@ -12,7 +19,7 @@ class CursesDisplay(Display):
     EMPTY = ord(' ')
     UNCLAIMED = ord(':')
     ix = 80
-    iy = 8
+    iy = 20
     def __init__(self, screen, game, cmap, ckey, color, wait):
         self.screen = screen
         self.game = game
@@ -20,6 +27,8 @@ class CursesDisplay(Display):
         self.t_centre = {}
         self.color = color
         self.wait = wait
+        self.logqueue = LogQueue()
+        LOG.addHandler(self.logqueue)
 
         self.wx = 0
         self.wy = 0
@@ -43,8 +52,31 @@ class CursesDisplay(Display):
         
         self.worldpad = curses.newpad(self.wy, self.wx)
         self.infopad = curses.newpad(self.iy, self.ix)    
+
+    def format(self, msg):
+        if msg[0] == 'start':
+            return "Game begins"
+        elif msg[0] == 'victory':
+            return "Victory to %s" % msg[1].name
+        elif msg[0] == 'reinforce':
+            _, player, t, f = msg
+            return "%s reinforces %s with %d (total %d)" % (player.name, t.name, f, t.forces)
+        elif msg[0] == 'conquer':
+            _, player, oppfor, st, tt, init, final = msg
+            return "%s attacks %s in %s from %s (victory) (losses %da, %dd)" % (player.name, oppfor.name, tt.name, st.name, init[0]-final[0], init[1]-final[1])
+        elif msg[0] == 'defeat':
+            _, player, oppfor, st, tt, init, final = msg
+            return "%s attacks %s in %s from %s (defeat) (losses %da, %dd)" % (player.name, oppfor.name, tt.name, st.name, init[0]-final[0], init[1]-final[1])
+        elif msg[0] == 'move':
+            _, player, st, tt, f = msg
+            return "%s moves %d from %s to %s (total %d)" % (player.name, f, st.name, tt.name, tt.forces)
+        elif msg[0] == 'claim':
+            _, player, t = msg
+            return "%s claims %s" % (player.name, t.name)
+        else:
+            raise
             
-    def update(self, msg, territory=None, player=None):
+    def update(self, msg, territory=None, player=None, extra=None, modal=False):
         if not territory:
             territory = []  
         if not player:
@@ -63,7 +95,7 @@ class CursesDisplay(Display):
                     char = t.ord
                 else:
                     char = self.UNCLAIMED
-            if name in territory:
+            if t in territory:
                 attrs |= curses.A_BOLD
             for i, j in self.t_coords[name]:
                 self.worldpad.addch(j, i, char, attrs)
@@ -73,7 +105,7 @@ class CursesDisplay(Display):
                                      str(t.forces), attrs)
 
         self.infopad.clear()
-        info = "TURN " + str(self.game.turn//len(self.game.players)) + ": " + " ".join(msg)
+        info = "TURN " + str(self.game.turn//len(self.game.players)) + ": " + self.format(msg)
         if self.game.options['round']:
             info = ("ROUND %d/%d " % self.game.options['round']) + info
         self.infopad.addstr(0, 0, info, curses.COLOR_WHITE | curses.A_BOLD)
@@ -94,12 +126,26 @@ class CursesDisplay(Display):
             info = "".join(s.ljust(8)[:8] for s in info) + " ".join(a.name for a in p.areas)
             self.infopad.addstr(3+i, 0, info, attrs)
 
-        self.worldpad.overwrite(self.screen, 0, 0, 1, 0, 
-                                min(self.sy, self.wy), min(self.sx, self.wx-1))
-        self.infopad.overwrite(self.screen, 0, 0, min(self.wy+2, self.sy), 0, 
-                               min(self.sy, self.wy + self.iy+1), min(self.ix-1, self.sx))
+        logline = len(self.game.turn_order) + 4
+        for i, record in enumerate(self.logqueue.queue):
+            self.infopad.addstr(logline+i, 0, record.getMessage()[:self.ix-1], curses.A_NORMAL)
+            if logline + i == self.iy - 1 and i < len(self.logqueue.queue) - 1:
+                self.infopad.addstr(logline+i+1, 0, "(%d more suppressed)" % (len(self.logqueue.queue) - i), curses.A_NORMAL)
+                break
+        
+        delay = self.game.options['delay']
+        if any(r.levelno > logging.WARN for r in self.logqueue.queue):
+            delay *= 5
+                
+        self.logqueue.queue = []
+        
+
+        self.worldpad.overwrite(self.screen, 0, 0, 1, 1, 
+                                min(self.sy-1, self.wy), min(self.sx-1, self.wx-1))
+        self.infopad.overwrite(self.screen, 0, 0, min(self.wy+2, self.sy-1), 0, 
+                               min(self.sy-1, self.wy + self.iy+1), min(self.ix-1, self.sx-1))
         self.screen.refresh()
-        if self.wait:
+        if self.wait or modal:
             self.screen.getch()
         else:
-            time.sleep(self.game.options['delay'])
+            time.sleep(delay)
