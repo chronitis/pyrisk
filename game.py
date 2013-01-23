@@ -9,18 +9,21 @@ import collections
 
 
 class Game(object):
+    """
+    This class represents an individual game, and contains the main game logic.
+    """
     defaults = {
-        "curses": True,
-        "color": True,
-        "delay": 0.1,
-        "connect": CONNECT,
-        "areas": AREAS,
-        "cmap": MAP,
-        "ckey": KEY,
-        "screen": None,
-        "round": None,
-        "wait": False,
-        "history": {}
+        "curses": True, #whether to use ncurses for map display
+        "color": True, #whether to use color with ncurses
+        "delay": 0.1, #seconds to sleep after each (ncurses) display update
+        "connect": CONNECT, #the territory connection graph (see world.py)
+        "areas": AREAS, #the territory->continent mapping, and values
+        "cmap": MAP, #the ASCII art map to use
+        "ckey": KEY, #the territority->char mapping key for the map
+        "screen": None, #a curses.window (for use with the curses.wrapper function)
+        "round": None, #the round number
+        "wait": False, #whether to pause and wait for a keypress after each event
+        "history": {} #the win/loss history for each player, for multiple rounds
     }
     def __init__(self, **options):
         self.options = self.defaults.copy()
@@ -49,19 +52,31 @@ class Game(object):
 
     @property
     def player(self):
+        """Property that returns the correct player object for this turn."""
         return self.players[self.turn_order[self.turn % len(self.players)]]
 
     def aiwarn(self, *args):
-        logging.getLogger("pyrisk.ai.%s" % self.player.ai.__class__.__name__).warn(*args)
+        """Generate a warning message when an AI player tries to break the rules."""
+        logging.getLogger("pyrisk.player.%s" % self.player.ai.__class__.__name__).warn(*args)
 
     def event(self, msg, territory=None, player=None):
-        msg = [str(m) for m in msg]
+        """
+        Record any game action.
+        `msg` is a tuple describing what happened.
+        `territory` is a list of territory objects to be highlighted, if any
+        `player` is a list of player names to be highlighted, if any
+        
+        Calling this method triggers the display to be updated, and any AI
+        players that have implemented event() to be notified.
+        """
+        
         self.display.update(msg, territory=territory, player=player)
-        LOG.info(msg)
+        
+        LOG.info([str(m) for m in msg])
         for p in self.players.values():
             p.ai.event(msg)
         
-    def start(self):
+    def play(self):
         assert 2 <= len(self.players) <= 5
         self.turn_order = list(self.players)
         random.shuffle(self.turn_order)
@@ -77,62 +92,70 @@ class Game(object):
             if self.player.alive:
                 choices = self.player.ai.reinforce(self.player.reinforcements)
                 assert sum(choices.values()) == self.player.reinforcements
-                for t, f in choices.items():
-                    if t not in self.world.territories:
-                        self.aiwarn("reinforce invalid territory %s", t)
+                for tt, ff in choices.items():
+                    t = self.world.territory(tt)
+                    f = int(ff)
+                    if t is None:
+                        self.aiwarn("reinforce invalid territory %s", tt)
                         continue
-                    if self.world.territories[t].owner != self.player:
-                        self.aiwarn("reinforce unowned territory %s", t)
+                    if t.owner != self.player:
+                        self.aiwarn("reinforce unowned territory %s", t.name)
                         continue
                     if f < 0:
                         self.aiwarn("reinforce invalid count %s", f)
                         continue
-                    self.world.territories[t].forces += f
-                    self.event(("reinforce", self.player.name, t, f), territory=[t], player=[self.player.name])
+                    t.forces += f
+                    self.event(("reinforce", self.player, t, f), territory=[t], player=[self.player.name])
                 
                 for src, target, attack, move in self.player.ai.attack():
-                    if src not in self.world.territories:
+                    st = self.world.territory(src)
+                    tt = self.world.territory(target)
+                    if st is None:
                         self.aiwarn("attack invalid src %s", src)
                         continue
-                    if target not in self.world.territories:
+                    if tt is None:
                         self.aiwarn("attack invalid target %s", target)
                         continue
-                    if self.world.territories[src].owner != self.player:
-                        self.aiwarn("attack unowned src %s", src)
+                    if st.owner != self.player:
+                        self.aiwarn("attack unowned src %s", st.name)
                         continue
-                    if self.world.territories[target].owner == self.player:
-                        self.aiwarn("attack owned target %s", target)
+                    if tt.owner == self.player:
+                        self.aiwarn("attack owned target %s", tt.name)
                         continue
-                    if self.world.territories[target] not in self.world.territories[src].connect:
-                        self.aiwarn("attack unconnected %s %s", src, target)
+                    if tt not in st.connect:
+                        self.aiwarn("attack unconnected %s %s", st.name, tt.name)
                         continue
-                    initial_forces = (self.world.territories[src].forces, self.world.territories[target].forces)
-                    victory = self.combat(src, target, attack, move)
-                    final_forces = (self.world.territories[src].forces, self.world.territories[target].forces)
-                    self.event(("conquer" if victory else "defeat", self.player.name, src, target, initial_forces, final_forces), territory=[src, target], player=[self.player.name, self.world.territories[target].owner.name])
+                    initial_forces = (st.forces, tt.forces)
+                    opponent = tt.owner
+                    victory = self.combat(st, tt, attack, move)
+                    final_forces = (st.forces, tt.forces)
+                    self.event(("conquer" if victory else "defeat", self.player, opponent, st, tt, initial_forces, final_forces), territory=[st, tt], player=[self.player.name, tt.owner.name])
                 freemove = self.player.ai.freemove()
                 if freemove:
                     src, target, count = freemove
+                    st = self.world.territory(src)
+                    tt = self.world.territory(target)
+                    f = int(count)
                     valid = True
-                    if src not in self.world.territories:
+                    if st is None:
                         self.aiwarn("freemove invalid src %s", src)
                         valid = False
-                    if target not in self.world.territories:
+                    if tt is None:
                         self.aiwarn("freemove invalid target %s", target)
                         valid = False
-                    if self.world.territories[src].owner != self.player:
-                        self.aiwarn("freemove unowned src %s", src)
+                    if st.owner != self.player:
+                        self.aiwarn("freemove unowned src %s", st.name)
                         valid = False
-                    if self.world.territories[target].owner != self.player:
-                        self.aiwarn("freemove unowned target %s", target)
+                    if tt.owner != self.player:
+                        self.aiwarn("freemove unowned target %s", tt.name)
                         valid = False
-                    if not 0 <= count < self.world.territories[src].forces:
-                        self.aiwarn("freemove invalid count %s", count)
+                    if not 0 <= f < st.forces:
+                        self.aiwarn("freemove invalid count %s", f)
                         valid = False
                     if valid:
-                        self.world.territories[src].forces -= count
-                        self.world.territories[target].forces += count
-                        self.event(("move", self.player.name, src, target, count), territory=[src, target], player=[self.player.name])
+                        st.forces -= count
+                        tt.forces += count
+                        self.event(("move", self.player, st, tt, count), territory=[st, tt], player=[self.player.name])
                 live_players = len([p for p in self.players.values() if p.alive])
             self.turn += 1
         winner = [p for p in self.players.values() if p.alive][0]
@@ -142,8 +165,8 @@ class Game(object):
         return winner.name
 
     def combat(self, src, target, f_atk, f_move):
-        n_atk = self.world.territories[src].forces
-        n_def = self.world.territories[target].forces
+        n_atk = src.forces
+        n_def = target.forces
 
         if f_atk is None:
             f_atk = lambda a, d: True
@@ -172,46 +195,52 @@ class Game(object):
             if move > max_move:
                 self.aiwarn("combat invalid move request %s (%s-%s)", move, min_move, max_move)
                 move = max_move
-            self.world.territories[src].forces = n_atk - move
-            self.world.territories[target].forces = move
-            self.world.territories[target].owner = self.world.territories[src].owner
+            src.forces = n_atk - move
+            target.forces = move
+            target.owner = src.owner
             return True
         else:
-            self.world.territories[src].forces = n_atk
-            self.world.territories[target].forces = n_def
+            src.forces = n_atk
+            target.forces = n_def
             return False
 
     def initial_placement(self):
-        empty = list(self.world.territories)
+        empty = list(self.world.territories.values())
         available = 35 - 2*len(self.players)
         remaining = {p: available for p in self.players}
 
         while empty:
             choice = self.player.ai.initial_placement(empty, remaining[self.player.name])
-            if choice not in empty:
-                self.aiwarn("initial invalid empty territory %s", choice)
+            t = self.world.territory(choice)
+            if t is None:
+                self.aiwarn("invalid territory choice %s", choice)
                 turn += 1
                 continue
-            self.world.territories[choice].forces += 1
-            self.world.territories[choice].owner = self.player
+            if t not in empty:
+                self.aiwarn("initial invalid empty territory %s", t.name)
+                turn += 1
+                continue
+            t.forces += 1
+            t.owner = self.player
             remaining[self.player.name] -= 1
-            empty.remove(choice)
-            self.event(("claim", self.player.name, choice), territory=[choice], player=[self.player.name])
+            empty.remove(t)
+            self.event(("claim", self.player, t), territory=[t], player=[self.player.name])
             self.turn += 1
         
         while sum(remaining.values()) > 0:
             if remaining[self.player.name] > 0:
                 choice = self.player.ai.initial_placement(None, remaining[self.player.name])
-                if choice not in self.world.territories:
+                t = self.world.territory(choice)
+                if t is None:
                     self.aiwarn("initial invalid territory %s", choice)
                     self.turn += 1
                     continue
-                if self.world.territories[choice].owner != self.player:
-                    self.aiwarn("initial unowned territory %s", choice)
+                if t.owner != self.player:
+                    self.aiwarn("initial unowned territory %s", t.name)
                     self.turn += 1
                     continue
-                self.world.territories[choice].forces += 1
+                t.forces += 1
                 remaining[self.player.name] -= 1
-                self.event(("reinforce", self.player.name, choice, 1), territory=[choice], player=[self.player.name])
+                self.event(("reinforce", self.player, t, 1), territory=[t], player=[self.player.name])
                 self.turn += 1
 

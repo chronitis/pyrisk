@@ -38,5 +38,8 @@ class Player(object):
     def reinforcements(self):
         return max(self.territory_count//3, 3) + sum(a.value for a in self.areas)
 
+    def __repr__(self):
+        return "<player %s %s>" % (self.name, self.ai.__class__.__name__)
+
     def __hash__(self):
         return hash(("player", self.name))
