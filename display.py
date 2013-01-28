@@ -63,10 +63,10 @@ class CursesDisplay(Display):
             return "%s reinforces %s with %d (total %d)" % (player.name, t.name, f, t.forces)
         elif msg[0] == 'conquer':
             _, player, oppfor, st, tt, init, final = msg
-            return "%s attacks %s in %s from %s (victory) (losses %da, %dd)" % (player.name, oppfor.name, tt.name, st.name, init[0]-final[0], init[1]-final[1])
+            return "%s conquers %s in %s from %s (lost %da, %dd)" % (player.name, oppfor.name, tt.name, st.name, init[0]-final[0]-final[1], init[1])
         elif msg[0] == 'defeat':
             _, player, oppfor, st, tt, init, final = msg
-            return "%s attacks %s in %s from %s (defeat) (losses %da, %dd)" % (player.name, oppfor.name, tt.name, st.name, init[0]-final[0], init[1]-final[1])
+            return "%s defeated by %s in %s from %s (lost %da, %dd)" % (player.name, oppfor.name, tt.name, st.name, init[0]-final[0], init[1]-final[1])
         elif msg[0] == 'move':
             _, player, st, tt, f = msg
             return "%s moves %d from %s to %s (total %d)" % (player.name, f, st.name, tt.name, tt.forces)
