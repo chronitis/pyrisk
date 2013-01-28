@@ -13,7 +13,7 @@ class LogQueue(logging.Handler):
 
 class Display(object):
     def update(self, msg, player=None, territory=None):
-        LOG.info(msg)
+        pass
 
 class CursesDisplay(Display):
     EMPTY = ord(' ')
