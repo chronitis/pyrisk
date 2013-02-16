@@ -129,7 +129,7 @@ class CursesDisplay(Display):
         logline = len(self.game.turn_order) + 4
         for i, record in enumerate(self.logqueue.queue):
             self.infopad.addstr(logline+i, 0, record.getMessage()[:self.ix-1], curses.A_NORMAL)
-            if logline + i == self.iy - 1 and i < len(self.logqueue.queue) - 1:
+            if logline + i == self.iy - 2 and i < len(self.logqueue.queue) - 1:
                 self.infopad.addstr(logline+i+1, 0, "(%d more suppressed)" % (len(self.logqueue.queue) - i), curses.A_NORMAL)
                 break
         
