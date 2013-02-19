@@ -39,7 +39,7 @@ class ChronAI(AI):
             return None                   
         
     def start(self):
-        self.seed = random.choice(self.world.territories.values())
+        self.seed = random.choice(list(self.world.territories.values()))
         self.distance = {t: len(self.pathfind(self.seed, t, hostile=False, forces=False)) for t in self.world.territories.values()}
         self.area_distance = {a: float(sum(self.distance[t] for t in a.territories))/len(a.territories) for a in self.world.areas.values()}
         self.area_priority = sorted(self.area_distance.keys(), key=lambda x: self.area_distance[x])
@@ -240,7 +240,7 @@ class ChronAI(AI):
         #-ve if they lose reinforcements
         result['enemy-reinforcements'] = sum(p.reinforcements for p in toy_players if p != toy_us) - sum(p.reinforcements for p in self.game.players.values() if p != self.player)
         old_border = set(t.name for t in self.player.territories if t.border)
-        new_border = set(t.name for t in toy_us.terrtitories if t.border)
+        new_border = set(t.name for t in toy_us.territories if t.border)
         
         #set of territory *names*
         result['new-borders'] = new_border - old_border
@@ -262,7 +262,7 @@ class ChronAI(AI):
         #given some source territories, target territories, target territories to defend, required p(victory) and available troops, plan an attack
         self.loginfo("plan_attack srcs=%s targets=%s defenses=%s p=%s", srcs, targets, defenses, prob)
         def random_walk(srcs, via, dests):
-            routes = tuple([[s] for s in srcs])
+            routes = [[s] for s in srcs]
             random.shuffle(routes)
             via = set(via)
             dests = set(dests)
@@ -270,7 +270,7 @@ class ChronAI(AI):
             while found:
                 found = False
                 for r in routes:
-                    possible = set(r[-1].connect) & via
+                    possible = list(set(r[-1].connect) & via)
                     if possible:
                         choice = random.choice(possible)
                         r.append(choice)
@@ -362,7 +362,7 @@ class ChronAI(AI):
                     possible = sorted(possible, key=lambda x: x['resistance']-x['freed-forces'])        
                 elif pri == 'shorten-border':
                     for a in adjacent:
-                        if not adjacent in planned:
+                        if not a in planned:
                             possible.append(self.evaluate_attack([a]))
                     for i, a1 in enumerate(adjacent[:-1]):
                         for a2 in adjacent[i+1:]:
@@ -378,33 +378,33 @@ class ChronAI(AI):
                 elif pri == 'target-weaker':
                     for a in adjacent:
                         if a not in planned and a.owner.reinforcements + a.owner.forces <= self.player.reinforcements + self.player.forces:
-                            possible.append(self.evaludate_attack([a]))
+                            possible.append(self.evaluate_attack([a]))
                     possible = sorted(possible, key=lambda x: x['resistance'] - x['enemy-reinforcements'])                    
                 for p in possible:
                     srcs = [self.world.territories[t] for t in p['new-inland']]
-                    taken = [self.world.territories[t] for t in p['taken']]
-                    border = [self.world.territories[t] for t in p['new-border']]
+                    taken = p['taken']
+                    border = [self.world.territories[t] for t in p['new-borders']]
                     plan = self.plan_attack(srcs, taken, {t: int(4*self.priority[pri]) for t in border}, self.priority[pri])
                     if plan:
                         routes, needed = plan
                         touched = reduce(lambda x, y: x|y, [set(r) for r in routes])
-                        if sum(needed) <= available and not touched & planned:
+                        if sum(needed) <= remaining and not touched & planned:
                             for r, n in zip(routes, needed):
                                 result[r[0]] += n
                                 self.plans.append(r)
                                 planned |= set(r)
-                                available -= n
+                                remaining -= n
                             self.loginfo("reinforce: made plan type=%s route=%s needed=%s, now available=%s", pri, routes, needed, available)    
                         else:
                             self.loginfo("reinforce: insufficient forces for plan type=%s route=%s needed=%s (available %s)", pri, routes, needed, available)
 
         #randomly add any remaining forces to our border
-        if available:
-            self.loginfo("reinforce: randomly distributing %s remaining forces", available)
+        if remaining:
+            self.loginfo("reinforce: randomly distributing %s remaining forces", remaining)
             border = [t for t in self.player.territories if t.border]
-            for i in range(available):
+            for i in range(remaining):
                 result[random.choice(border)] += 1
-
+        self.loginfo("reinforce: final distribution %s, plans %s", result, self.plans)
         return result
 
     def attack(self):
