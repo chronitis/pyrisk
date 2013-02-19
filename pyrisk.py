@@ -23,6 +23,7 @@ parser.add_argument("-s", "--seed", type=int, default=None, help="Random number 
 parser.add_argument("-g", "--games", type=int, default=1, help="Number of rounds to play")
 parser.add_argument("-w", "--wait", action="store_true", default=False, help="Pause and wait for a keypress after each action")
 parser.add_argument("players", nargs="+", help="Names of the AI classes to use. May use 'ExampleAI*3' syntax.")
+parser.add_argument("--deal", action="store_true", default=False, help="Deal territories rather than letting players choose")
 
 args = parser.parse_args()
 
@@ -59,7 +60,7 @@ for p in args.players:
             raise
 
 kwargs = dict(curses=args.curses, color=args.color, delay=args.delay,
-              connect=CONNECT, cmap=MAP, ckey=KEY, areas=AREAS, wait=args.wait)
+              connect=CONNECT, cmap=MAP, ckey=KEY, areas=AREAS, wait=args.wait, deal=args.deal)
 def wrapper(stdscr, **kwargs):
     g = Game(screen=stdscr, **kwargs)
     for i, klass in enumerate(player_classes):

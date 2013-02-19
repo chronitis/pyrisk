@@ -23,7 +23,8 @@ class Game(object):
         "screen": None, #a curses.window (for use with the curses.wrapper function)
         "round": None, #the round number
         "wait": False, #whether to pause and wait for a keypress after each event
-        "history": {} #the win/loss history for each player, for multiple rounds
+        "history": {}, #the win/loss history for each player, for multiple rounds
+        "deal": False #deal out territories rather than let players choose
     }
     def __init__(self, **options):
         self.options = self.defaults.copy()
@@ -209,23 +210,33 @@ class Game(object):
         available = 35 - 2*len(self.players)
         remaining = {p: available for p in self.players}
 
-        while empty:
-            choice = self.player.ai.initial_placement(empty, remaining[self.player.name])
-            t = self.world.territory(choice)
-            if t is None:
-                self.aiwarn("invalid territory choice %s", choice)
-                turn += 1
-                continue
-            if t not in empty:
-                self.aiwarn("initial invalid empty territory %s", t.name)
-                turn += 1
-                continue
-            t.forces += 1
-            t.owner = self.player
-            remaining[self.player.name] -= 1
-            empty.remove(t)
-            self.event(("claim", self.player, t), territory=[t], player=[self.player.name])
-            self.turn += 1
+        if self.options['deal']:
+            random.shuffle(empty)
+            while empty:
+                t = empty.pop()
+                t.forces += 1
+                remaining[self.player.name] -= 1
+                t.owner = self.player
+                self.event(("deal", self.player, t), territory=[t], player=[self.player.name])
+                self.turn += 1
+        else:
+            while empty:
+                choice = self.player.ai.initial_placement(empty, remaining[self.player.name])
+                t = self.world.territory(choice)
+                if t is None:
+                    self.aiwarn("invalid territory choice %s", choice)
+                    turn += 1
+                    continue
+                if t not in empty:
+                    self.aiwarn("initial invalid empty territory %s", t.name)
+                    turn += 1
+                    continue
+                t.forces += 1
+                t.owner = self.player
+                remaining[self.player.name] -= 1
+                empty.remove(t)
+                self.event(("claim", self.player, t), territory=[t], player=[self.player.name])
+                self.turn += 1
         
         while sum(remaining.values()) > 0:
             if remaining[self.player.name] > 0:

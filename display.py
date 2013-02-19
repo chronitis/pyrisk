@@ -73,6 +73,9 @@ class CursesDisplay(Display):
         elif msg[0] == 'claim':
             _, player, t = msg
             return "%s claims %s" % (player.name, t.name)
+        elif msg[0] == 'deal':
+            _, player, t = msg
+            return "%s dealt %s" % (player.name, t.name)
         else:
             raise
             
