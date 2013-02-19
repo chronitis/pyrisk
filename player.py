@@ -1,28 +1,30 @@
+from copy import deepcopy
+
 class Player(object):
     def __init__(self, name, game, ai_class, ai_kwargs):
         self.name = name
         self.color = 0
         self.ord = 32
         self.ai = ai_class(self, game, game.world, **ai_kwargs)
-        self.game = game
+        self.world = game.world
 
     @property
     def territories(self):
-        for t in self.game.world.territories.values():
+        for t in self.world.territories.values():
             if t.owner == self:
                 yield t
 
     @property
     def territory_count(self):
         count = 0
-        for t in self.game.world.territories.values():
+        for t in self.world.territories.values():
             if t.owner == self:
                 count += 1
         return count
 
     @property
     def areas(self):
-        for a in self.game.world.areas.values():
+        for a in self.world.areas.values():
             if a.owner == self:
                 yield a
 
@@ -43,3 +45,15 @@ class Player(object):
 
     def __hash__(self):
         return hash(("player", self.name))
+        
+    def __eq__(self, other):
+        if isinstance(other, Player):
+            return self.name == other.name
+        return False
+
+    def __deepcopy__(self, memo):
+        newobj = Player(self.name, self, lambda *x, **y: None, {})
+        newobj.color = self.color
+        newobj.ord = self.ord
+        newobj.world = deepcopy(self.world, memo)
+        return newobj

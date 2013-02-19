@@ -1,3 +1,4 @@
+from copy import deepcopy
 import logging
 LOG = logging.getLogger("pyrisk")
 
@@ -36,12 +37,25 @@ class Territory(object):
 
     def __hash__(self):
         return hash(("territory", self.name))
+        
+    def __eq__(self, other):
+        if isinstance(other, Territory):
+            return self.name == other.name
+        return False
+
+    def __deepcopy__(self, memo):
+        newobj = Territory(self.name, None)
+        newobj.__dict__.update(deepcopy(self.__dict__, memo))
+        return newobj
 
 class Area(object):
     def __init__(self, name, value):
         self.name = name
         self.value = value
         self.territories = set()
+
+    def __getinitargs__(self):
+        return (self.name, self.value)
 
     def __repr__(self):
         return "<area %s, %s, %s>" % (self.name, self.value, self.territories)
@@ -69,6 +83,16 @@ class Area(object):
 
     def __hash__(self):
         return hash(("area", self.name))
+        
+    def __eq__(self, other):
+        if isinstance(other, Area):
+            return self.name == other.name
+        return False
+
+    def __deepcopy__(self, memo):
+        newobj = Area(self.name, None)
+        newobj.__dict__.update(deepcopy(self.__dict__, memo))
+        return newobj
 
 class World(object):
     ords = list(map(ord, r'\/|-+'))
