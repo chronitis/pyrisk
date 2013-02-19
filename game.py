@@ -1,11 +1,11 @@
 from display import Display, CursesDisplay
 from player import Player
-from territory import Territory, Area, World
+from territory import World
 from world import CONNECT, AREAS, MAP, KEY
 import logging
 LOG = logging.getLogger("pyrisk")
 import random
-import collections
+
 
 
 class Game(object):
@@ -225,11 +225,11 @@ class Game(object):
                 t = self.world.territory(choice)
                 if t is None:
                     self.aiwarn("invalid territory choice %s", choice)
-                    turn += 1
+                    self.turn += 1
                     continue
                 if t not in empty:
                     self.aiwarn("initial invalid empty territory %s", t.name)
-                    turn += 1
+                    self.turn += 1
                     continue
                 t.forces += 1
                 t.owner = self.player

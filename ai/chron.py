@@ -2,7 +2,6 @@ from ai import AI
 import random
 from collections import defaultdict
 from copy import deepcopy
-import math
 
 class ChronAI(AI):
     def pathfind(self, src, dest, forces=True, hostile=True):
@@ -84,7 +83,6 @@ class ChronAI(AI):
             return random.choice(choice).name
     
     def needed_reinforcements(self, t, prob=0.50):
-        result = 0
         adjacent_players = set(tt.owner for tt in t.adjacent(friendly=False))
         worst_case = []
         for player in adjacent_players:
