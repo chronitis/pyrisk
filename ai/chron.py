@@ -94,6 +94,8 @@ class ChronAI(AI):
         return max(0, defenders - t.forces)
         
     def needed_defenders(self, worst_case, defenders=0, prob=0.50):
+        if not worst_case:
+            return 0
         max_defenders = sum(worst_case)
         while defenders <= max_defenders:
             survive = defenders
@@ -112,6 +114,8 @@ class ChronAI(AI):
         return defenders
 
     def needed_attackers(self, defenders, attackers=1, prob=0.50, survivors=1):
+        if not defenders:
+            return survivors
         while True:
             a = attackers
             for d in defenders:
@@ -120,7 +124,7 @@ class ChronAI(AI):
                     a = 0
                     break
                 else:
-                    a = int(s_atk)
+                    a = int(s_atk) - 1
             if a >= survivors:
                 break
             else:
@@ -146,7 +150,10 @@ class ChronAI(AI):
         else
             prioritise easiest to complete one
         """
-            
+        
+        self.loginfo("strategy: forces=%s reinforcements=%s areas=%s territories=%s", self.player.forces, self.player.reinforcements, tuple(self.player.areas), tuple(self.player.territories))
+        
+        
         strength_order = sorted(self.game.players.values(), key=lambda x: x.forces + x.reinforcements)
         strongest = strength_order[-1]
         weakest = strength_order[0]
@@ -253,7 +260,7 @@ class ChronAI(AI):
         #change of hostiles up against our border - -ve if situation improved
         result['border-hostiles'] = sum(sum(a.forces for a in t.adjacent(friendly=False)) for t in toy_us.territories if t.border) - sum(sum(a.forces for a in t.adjacent(friendly=False)) for t in self.player.territories if t.border)
         result['taken'] = taken
-        self.loginfo("evaluate_attack take=%s -> %s", taken, result)
+        self.loginfo("evaluate_attack %s", result)
         return result
    
     def plan_attack(self, srcs, targets, defenses, prob, tries=100):
@@ -299,7 +306,7 @@ class ChronAI(AI):
 
         needed = {}
         for p in possible:
-            needed[p] = [self.needed_attackers([t.forces for t in r[1:]], r[0].forces, prob, defenses.get(r[0], 0)) for r in p]
+            needed[p] = [self.needed_attackers([t.forces for t in r[1:]], r[0].forces, prob, defenses.get(r[0], 1)) for r in p]
             
         possible = sorted(possible, key=lambda x: sum(needed[x]))
 
@@ -351,7 +358,7 @@ class ChronAI(AI):
                 possible = []
                 if pri == 'take-area':
                     for a in self.world.areas.values():
-                        if any(t.owner == self.player for t in a.territories):
+                        if any(t.owner == self.player for t in a.territories) and not a.owner:
                             needed = [t for t in a.territories if t.owner != self.player]
                             if set(needed) & planned:
                                 continue
@@ -386,6 +393,8 @@ class ChronAI(AI):
                     if plan:
                         routes, needed = plan
                         touched = reduce(lambda x, y: x|y, [set(r) for r in routes])
+                        for i in range(len(routes)):
+                            needed[i] = max(needed[i] - routes[i][0].forces, 0)
                         if sum(needed) <= remaining and not touched & planned:
                             for r, n in zip(routes, needed):
                                 result[r[0]] += n
