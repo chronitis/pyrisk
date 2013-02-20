@@ -33,7 +33,7 @@ class Territory(object):
         return sum(t.forces for t in self.adjacent(friendly, thisarea))
         
     def __repr__(self):
-        return "<territory %s, %s, %s>" % (self.name, self.area.name if self.area else None, self.owner)
+        return "T;%s" % self.name
 
     def __hash__(self):
         return hash(("territory", self.name))
@@ -58,7 +58,7 @@ class Area(object):
         return (self.name, self.value)
 
     def __repr__(self):
-        return "<area %s, %s, %s>" % (self.name, self.value, self.territories)
+        return "A;%s" % self.name
     
     @property
     def owner(self):
